@@ -15,7 +15,7 @@ def fetch_stock_data(json_file_path, start_date, end_date, delay=0.5):
     # Extract tickers and categories from the JSON
     all_close_prices = pd.DataFrame()
     tickers_dict = []
-    for category, tickers in equities_data["EQUITIES_LIST"].items():
+    for category, tickers in equities_data["SHORT_MEDIUM_EQUITIES_LIST"].items():
         for ticker in tickers:
             tickers_dict.append((ticker, category))
     

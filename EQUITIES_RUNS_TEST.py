@@ -4,6 +4,7 @@ from tabulate import tabulate
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+import json
 
 def plot_zscore_boxplot(results_by_category, output_dir='runs_test_plots'):
     """
@@ -13,7 +14,6 @@ def plot_zscore_boxplot(results_by_category, output_dir='runs_test_plots'):
     - results_by_category: Dictionary with categories as keys and lists of [ticker, runs, expected_runs, z_score, randomness] as values
     - output_dir: Directory to save the plot image
     """
-
     # Prepare data for box plot
     all_z_scores = {cat: [res[3] for res in results_by_category[cat]] for cat in results_by_category if results_by_category[cat]}
     
@@ -156,12 +156,45 @@ def runs_test(all_stock_data, num_tickers_to_run='all'):
             print(f"No valid data for tickers in category {category}")
             
     plot_zscore_boxplot(results_by_category, "")
-    return results_by_category
+    return results_by_category 
 
-# Main script
-if __name__ == "__main__":
-        # Load stock data from CSV
+def main():
+    """
+    Main function to run the runs test script with stock data and date configuration.
+    """
+    # Load date configuration
+    date_config_path = 'date_config.json'
+    try:
+        with open(date_config_path, 'r') as file:
+            date_config = json.load(file)
+        start_date = date_config['START_DATE']
+        end_date = date_config['END_DATE']
+        print(f"Using date range: {start_date} to {end_date}")
+    except FileNotFoundError:
+        print(f"Error: {date_config_path} not found. Please ensure the file exists.")
+        return
+    except KeyError as e:
+        print(f"Error: Missing key {e} in {date_config_path}.")
+        return
+    
+    # Load stock data from CSV
+    try:
+        print("Loading stock data from CSV...")
         all_stock_data = pd.read_csv("all_stock_data.csv")
-        
-        # Run the test
-        results = runs_test(all_stock_data, num_tickers_to_run='all')
+    except FileNotFoundError:
+        print("Error: all_stock_data.csv not found. Please ensure the file exists.")
+        return
+    
+    # Filter data by date range
+    all_stock_data['Date'] = pd.to_datetime(all_stock_data['Date'])
+    all_stock_data = all_stock_data[
+        (all_stock_data['Date'] >= start_date) & 
+        (all_stock_data['Date'] <= end_date)
+    ]
+    
+    # Run the test
+    print("Running runs test...")
+    results = runs_test(all_stock_data, num_tickers_to_run='all')
+
+if __name__ == "__main__":
+    main()
