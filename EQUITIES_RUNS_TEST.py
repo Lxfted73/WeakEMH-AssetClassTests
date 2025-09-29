@@ -16,7 +16,7 @@ def plot_zscore_boxplot(results_by_category, output_dir='runs_test_plots'):
     Parameters:
     - results_by_category: Dictionary with categories as keys and lists of [ticker, runs, expected_runs, z_score, randomness] as values
     - output_dir: Directory to save the plot image
-    """
+    """ 
     # Prepare data for box plot
     all_z_scores = {cat: [res[3] for res in results_by_category[cat]] for cat in results_by_category if results_by_category[cat]}
     

@@ -13,11 +13,9 @@ INPUT_FILES = ['data_all_equities.csv', 'data_random_walk.csv']
 def ljung_box_test(all_stock_data, num_tickers_to_run='all'):
     """
     Perform a Ljung-Box test on stock price data to assess randomness of returns, organized by category.
-    
     Parameters:
     - all_stock_data: DataFrame with columns ['Category', 'Ticker', 'Date', 'Close']
     - num_tickers_to_run: 'all' or an integer to limit the number of tickers processed per category
-    
     Returns:
     - Dictionary with categories as keys and lists of [ticker, lb_stats, p_values, randomness] as values
       where lb_stats and p_values are dictionaries with lags as keys
@@ -46,7 +44,6 @@ def ljung_box_test(all_stock_data, num_tickers_to_run='all'):
     for category in categories:
         print(f"\n=== {category} Analysis ===")
         category_results = []
-        
         # Get tickers for this category
         category_tickers = sorted([ticker for cat, ticker in grouped_data.keys() if cat == category])
         
@@ -63,7 +60,6 @@ def ljung_box_test(all_stock_data, num_tickers_to_run='all'):
             try:
                 # Get data for the current ticker
                 stock_data = grouped_data[(category, ticker)]
-                
                 if len(stock_data) < 20:
                     print(f"{ticker}: Insufficient data in CSV (<20 days)")
                     continue
@@ -93,7 +89,6 @@ def ljung_box_test(all_stock_data, num_tickers_to_run='all'):
                 if category not in results_by_category:
                     results_by_category[category] = []
                 results_by_category[category].append([ticker, lb_stats, p_values, randomness])
-                
             except Exception as e:
                 print(f"{ticker}: Error processing data - {e}")
                 continue
@@ -110,64 +105,108 @@ def ljung_box_test(all_stock_data, num_tickers_to_run='all'):
 
 def plot_ljung_box_results(results_by_category, output_dir='ljung_box_plots'):
     """
-    Create a box plot for Ljung-Box test p-values (lag 60) across all categories using seaborn.
+    Create a stacked bar plot using Seaborn/Matplotlib showing the proportion of tickers with
+    significant (p < 0.05) vs. non-significant (p >= 0.05) Ljung-Box p-values for selected lags
+    across categories, with distinct colors for each category. Save plot data to a CSV file
+    including the number of companies per category.
     
     Parameters:
     - results_by_category: Dictionary with categories as keys and lists of [ticker, lb_stats, p_values, randomness]
-    - output_dir: Directory to save the plot image
+    - output_dir: Directory to save the plot image and data CSV
     """
     # Set seaborn style for better aesthetics
     sns.set_style("whitegrid")
     
-    # # Commented out: Bar plot for Ljung-Box test statistics per category
-    # for category, results in results_by_category.items():
-    #     tickers = [result[0] for result in results]
-    #     lb_stats = [float(result[1]['lag_60']) for result in results]  # Use lag 60
-    #     
-    #     plt.figure(figsize=(10, 6))
-    #     sns.barplot(x=tickers, y=lb_stats, hue=tickers, palette='Blues', legend=False)
-    #     plt.axhline(y=18.31, color='red', linestyle='--', label='Critical Value (95%, 10 lags)')
-    #     plt.title(f'Ljung-Box Test Statistics (Lag 60) - {category}', fontsize=14)
-    #     plt.xlabel('Ticker', fontsize=12)
-    #     plt.ylabel('Ljung-Box Statistic', fontsize=12)
-    #     plt.legend()
-    #     plt.xticks(rotation=45)
-    #     plt.tight_layout()
-    #     
-    #     # Save the bar plot
-    #     bar_filename = os.path.join(output_dir, f'ljung_box_bar_{category}.png')
-    #     plt.savefig(bar_filename)
-    #     plt.close()
-    #     print(f"Bar plot for {category} saved as {bar_filename}")
+    # Select subset of lags to reduce complexity
+    selected_lags = [1, 10, 60]
     
-    # Box plot for p-values across categories (using lag 60)
-    p_values_by_category = []
-    category_labels = []
-    for category, results in results_by_category.items():
-        p_values = [result[2]['lag_60'] for result in results]  # Use lag 60
-        if p_values:
-            p_values_by_category.append(p_values)
-            category_labels.append(category)
+    # Define colors for each category (updated with darker significant and brighter non-significant shades)
+    colors = {
+        'Emerging': {'significant': '#1b5e20', 'non_significant': '#66bb6a'},
+        'Large-cap': {'significant': '#0d47a1', 'non_significant': '#4fc3f7'},
+        'Mid-cap': {'significant': '#4a148c', 'non_significant': '#ce93d8'},
+        'Random': {'significant': '#d84315', 'non_significant': '#ffb300'},
+        'Small-cap': {'significant': '#b71c1c', 'non_significant': '#ef9a9a'}
+    }
     
-    if p_values_by_category:
-        plt.figure(figsize=(10, 6))
-        sns.boxplot(data=p_values_by_category, palette='Blues')
-        plt.xticks(ticks=range(len(category_labels)), labels=category_labels)
-        plt.axhline(y=0.05, color='red', linestyle='--', label='Significance Threshold (p=0.05)')
-        plt.title('P-value Distribution by Category (Lag 60)', fontsize=14)
-        plt.xlabel('Category', fontsize=12)
-        plt.ylabel('P-value', fontsize=12)
-        plt.legend()
-        plt.tight_layout()
-        
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Save the box plot
-        box_filename = os.path.join(output_dir, 'ljung_box_pvalue_boxplot.png')
-        plt.savefig(box_filename)
-        plt.close()
-        print(f"Box plot saved as {box_filename}")
+    # Prepare data for stacked bar plot
+    plot_data = []
+    for category in sorted(results_by_category.keys()):
+        if category not in colors:
+            print(f"Warning: No color defined for category {category}. Skipping.")
+            continue
+        # Get total number of companies (tickers) for the category
+        total = len(results_by_category[category])
+        print(f"Category {category}: {total} companies")
+        for lag in selected_lags:
+            # Count significant (p < 0.05) and non-significant (p >= 0.05) p-values
+            significant = sum(1 for _, _, p_values, _ in results_by_category[category] if p_values[f'lag_{lag}'] < 0.05)
+            non_significant = total - significant
+            # Calculate proportions
+            if total > 0:
+                plot_data.append({
+                    'Category': category,
+                    'Lag': f'Lag {lag}',
+                    'Significant': significant / total,
+                    'Non-significant': non_significant / total,
+                    'Num_Companies': total
+                })
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(plot_data)
+    
+    # Save plot data to CSV
+    csv_filename = os.path.join(output_dir, 'ljung_box_plot_data.csv')
+    df.to_csv(csv_filename, index=False)
+    print(f"Plot data saved as {csv_filename}")
+    
+    # Create figure
+    plt.figure(figsize=(10, 6))
+    
+    # Plot stacked bars
+    categories = sorted(df['Category'].unique())
+    lags = df['Lag'].unique()
+    bar_width = 0.15  # Adjust width based on number of categories
+    x_positions = np.arange(len(lags))
+    
+    for i, category in enumerate(categories):
+        cat_data = df[df['Category'] == category]
+        # Plot significant bars
+        plt.bar(
+            x_positions + i * bar_width,
+            cat_data['Significant'],
+            bar_width,
+            label=f'{category}: Significant (p < 0.05)',
+            color=colors[category]['significant'],
+            edgecolor='white'
+        )
+        # Plot non-significant bars on top
+        plt.bar(
+            x_positions + i * bar_width,
+            cat_data['Non-significant'],
+            bar_width,
+            bottom=cat_data['Significant'],
+            label=f'{category}: Non-significant (p >= 0.05)',
+            color=colors[category]['non_significant'],
+            edgecolor='white'
+        )
+    
+    # Customize plot
+    plt.xticks(x_positions + bar_width * (len(categories) - 1) / 2, lags)
+    plt.xlabel('Lag', fontsize=12)
+    plt.ylabel('Proportion of Tickers', fontsize=12)
+    plt.title('Proportion of Tickers with Significant vs. Non-significant P-values by Category', fontsize=14)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Save the plot
+    bar_filename = os.path.join(output_dir, 'ljung_box_stacked_bar.png')
+    plt.savefig(bar_filename, bbox_inches='tight')
+    plt.close()
+    print(f"Stacked bar plot saved as {bar_filename}")
 
 def main():
     """
