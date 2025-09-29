@@ -6,6 +6,9 @@ import seaborn as sns
 import os
 import json
 
+# List of input CSV files (add or remove files to include additional categories)
+INPUT_FILES = ['data_all_equities.csv', 'data_random_walk.csv']
+
 def plot_zscore_boxplot(results_by_category, output_dir='runs_test_plots'):
     """
     Generate a box plot of Z-scores across all categories with improved colors.
@@ -54,7 +57,7 @@ def plot_zscore_boxplot(results_by_category, output_dir='runs_test_plots'):
     plt.tight_layout()
     
     # Save the plot
-    box_filename = os.path.join(output_dir, 'all_categories_zscore_boxplot.png')
+    box_filename = os.path.join(output_dir, 'test_results_runs.png')
     plt.savefig(box_filename)
     plt.close()
     print(f"Box plot saved as {box_filename}")
@@ -160,37 +163,29 @@ def runs_test(all_stock_data, num_tickers_to_run='all'):
 
 def main():
     """
-    Main function to run the runs test script with stock data and date configuration.
+    Main function to run the runs test with combined data from multiple CSV files.
     """
-    # Load date configuration
-    date_config_path = 'date_config.json'
-    try:
-        with open(date_config_path, 'r') as file:
-            date_config = json.load(file)
-        start_date = date_config['START_DATE']
-        end_date = date_config['END_DATE']
-        print(f"Using date range: {start_date} to {end_date}")
-    except FileNotFoundError:
-        print(f"Error: {date_config_path} not found. Please ensure the file exists.")
-        return
-    except KeyError as e:
-        print(f"Error: Missing key {e} in {date_config_path}.")
-        return
+    # Load date configuration (simplified, no error checking)
+    with open('date_config.json') as file:
+        config = json.load(file)
+    start_date, end_date = config['START_DATE'], config['END_DATE']
     
-    # Load stock data from CSV
-    try:
-        print("Loading stock data from CSV...")
-        all_stock_data = pd.read_csv("all_stock_data.csv")
-    except FileNotFoundError:
-        print("Error: all_stock_data.csv not found. Please ensure the file exists.")
-        return
+    # Load and combine data from all input files
+    all_stock_data = pd.DataFrame()
+    for file in INPUT_FILES:
+        try:
+            print(f"Loading data from {file}...")
+            data = pd.read_csv(file)
+            data['Date'] = pd.to_datetime(data['Date'])
+            data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
+            all_stock_data = pd.concat([all_stock_data, data], ignore_index=False)
+        except FileNotFoundError:
+            print(f"Error: {file} not found. Skipping.")
+            continue
     
-    # Filter data by date range
-    all_stock_data['Date'] = pd.to_datetime(all_stock_data['Date'])
-    all_stock_data = all_stock_data[
-        (all_stock_data['Date'] >= start_date) & 
-        (all_stock_data['Date'] <= end_date)
-    ]
+    if all_stock_data.empty:
+        print("Error: No valid data loaded from any input files.")
+        return
     
     # Run the test
     print("Running runs test...")

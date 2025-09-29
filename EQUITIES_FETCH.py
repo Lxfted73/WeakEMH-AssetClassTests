@@ -6,6 +6,18 @@ import os
 from datetime import datetime
 
 def fetch_stock_data(json_file_path, start_date, end_date, delay=0.5):
+    """
+    Fetch stock price data for tickers specified in a JSON file using yfinance.
+    
+    Parameters:
+    - json_file_path: Path to JSON file containing tickers and categories
+    - start_date: Start date for data retrieval (YYYY-MM-DD)
+    - end_date: End date for data retrieval (YYYY-MM-DD)
+    - delay: Delay between API calls to avoid rate limiting (seconds)
+    
+    Returns:
+    - DataFrame with columns ['Close', 'Ticker', 'Category'] and Date as index
+    """
     # Load the JSON file
     if not os.path.exists(json_file_path):
         raise FileNotFoundError(f"JSON file not found: {json_file_path}")
@@ -41,10 +53,24 @@ def fetch_stock_data(json_file_path, start_date, end_date, delay=0.5):
     return all_close_prices
 
 def main():
-    # Configuration
-    start_date = '2024-01-01'
-    end_date = datetime.now().strftime('%Y-%m-%d')  # Use today's date to avoid future dates
-
+    """
+    Main function to fetch stock data using dates from date_config.json and save to CSV.
+    """
+    # Load date configuration
+    date_config_path = 'date_config.json'
+    try:
+        with open(date_config_path, 'r') as file:
+            date_config = json.load(file)
+        start_date = date_config['START_DATE']
+        end_date = date_config['END_DATE']
+        print(f"Using date range: {start_date} to {end_date}")
+    except FileNotFoundError:
+        print(f"Error: {date_config_path} not found. Please ensure the file exists.")
+        return
+    except KeyError as e:
+        print(f"Error: Missing key {e} in {date_config_path}.")
+        return
+    
     # Load tickers from JSON
     json_file_path = 'equities.json'
     if not os.path.exists(json_file_path):
@@ -56,6 +82,7 @@ def main():
     
     # Combine all tickers into a single list
     all_tickers = [(ticker, category) for category, tick_list in tickers_data["EQUITIES_LIST"].items() for ticker in tick_list]
+    print(f"Found {len(all_tickers)} tickers to process")
 
     # Fetch stock closing prices
     stock_data = fetch_stock_data(json_file_path, start_date, end_date)
